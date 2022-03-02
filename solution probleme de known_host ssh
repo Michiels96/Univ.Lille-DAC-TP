@@ -1,0 +1,7 @@
+Si on tombre sur le problème de connexion à une mach. distante comme ici:
+https://help.dreamhost.com/hc/en-us/articles/217239087-Updating-host-keys
+
+on doit ajouter l'addr IP de la mach. distante au fichier known_host de notre mach. hôte.
+ex: je veux me connecter à la machine d'addr IP 172.28.100.72,
+je doit exécuter la commande 
+#ssh-keygen -R 172.28.100.72

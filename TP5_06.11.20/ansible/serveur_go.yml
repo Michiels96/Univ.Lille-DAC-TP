@@ -1,0 +1,42 @@
+---
+- name: Install go_server
+  hosts: all
+  become: true
+
+  tasks:
+    - name: copy go_server files
+      copy:
+        src: "/home/pierre/Bureau/Quadrimestre_1/DAC/dac-tp/TP5_06.11.20/ansible/Gofiles"
+        dest: "/root/"
+      ignore_errors: yes
+
+    # supprimer le container et l'image si ils existent déjà
+    - name: stop and remove contgo_server
+      docker_container:
+        name: contgo_server
+        state: absent
+
+    - name: stop and remove go_serverimg
+      docker_image:
+        name: go_serverimg
+        state: absent
+        force_absent: yes
+
+
+        
+
+    - name: build go_serverimg image
+      docker_image:
+        build:
+          path: /root/Gofiles
+        name: go_serverimg
+
+    - name: build contgo_server container
+      docker_container:
+        name: contgo_server
+        image: go_serverimg
+        ports: 
+          - "8000:80"
+        state: started
+        env:
+          HOSTNAME: "{{ hostname }}"

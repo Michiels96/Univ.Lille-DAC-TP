@@ -1,0 +1,42 @@
+TP1 (18.09.2020)
+Installation des instances
+but => lancer 4 instances d'une image
+1. connexion sur openstack
+2. onglet images -> ubuntu -> launch
+3. l'onglet qui apparait permet de lancer une ou plusieurs instances de l'image qu'on a 'launch'
+4. vérifier ts les onglets et générer une clé ssh pour le(s) instance(s)
+
+Connexion via ssh
+5. sauvegarder la clé publique/privée sur le poste client et lancer un terminal depuis cet endroit
+6. changer les droits de la clé privée depuis la machine cliente avec la commande: #chmod 600 clePrivée
+7. commande à exécuter: "ssh -i (fichier clé privée) ubuntu@addrIpUbuntu"
+
+lsof/netstat/wget/netcat
+Sécurisation des instances
+1. test d'envoi/reception de fichier via la commande netcat (https://doc.fedora-fr.org/wiki/Netcat,_connexion_client/serveur_en_bash)
+1.1 sur machine serveur #sudo nc -l 8080 < fichierEnvoye
+1.2 sur machine client #nc addrIp 8080 > fichierReçu
+2. installer wireshark (tshark pour la version de wireshark en ligne de commande) sur la mach. virt. puis sauvegarder la surveillance dans un fichier pour ensuite le rediriger via netcat vers la machine client
+2.1 recupérer le nom de la carte réseau => 'ens3'
+2.1 créer le fichier capture-output.pcap et lui donner les droits d'écriture #touch capture-output.pcap #chmod a+w capture-output.pcap
+2.2 surveiller le trafic réseau sur la mach. virt. #sudo tshark -i ens3 -w capture-output.pcap
+attendre qques sec. puis ctrl-C
+2.3 lire le contenu capturé #sudo tshark -r capture-output.pcap
+
+3. rediriger le fichier vers la machine cliente 
+3.1 capture-output.pcap illisible si la machine cliente car n'a pas tshark donc envoi du contenu dans un fichier lisible (rediriger en fait la lecture du fichier de surveillance vers un bete fichier texte qui lui sera envoyé à la mach. cliente)
+3.2 #sudo tshark -r capture-output.pcap > fichierDEnvoi
+#sudo nc -l 8080 < fichierDEnvoi
+et 
+#nc addrIp 8080 > fichierDEnvoi
+
+4. Sécurisez vos instances en utilisant le par-feux de votre choix (commande firewall-cmd alias firewalld)
+4.1 installer le paquet #sudo apt-get install firewalld
+4.2 https://unix.stackexchange.com/questions/594280/how-to-block-all-ports-except-80-443-22-3306-ports-using-firewalld
+4.3 #firewall-cmd --permanent --zone=public --add-port=22/tcp (et seul le port 22 est ouvert)
+4.4 essayer d'aller sur la mach. serv. avec nc, impossible car port non dispo
+
+
+
+
+

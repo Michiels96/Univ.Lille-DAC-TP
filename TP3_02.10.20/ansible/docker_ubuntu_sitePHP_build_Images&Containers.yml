@@ -1,0 +1,67 @@
+---
+- name: build sitePHP Containers and Images
+  hosts: all
+  become: true
+
+
+  tasks:
+    # - name: install apache2
+    #   apt: name=apache2 update_cache=yes state=latest
+
+    # - name: create sitePHPDocker folder
+    #   file:
+    #     path: /root/sitePHPDocker
+    #     state: directory
+
+    
+
+    - name: copy sitePHPDocker directory
+      copy:
+        src: "/home/pierre/Bureau/DAC/dac-tp/TP3_02.10.20/ansible/sitePHPDocker"
+        dest: "/root/"
+      ignore_errors: yes
+
+
+
+    - name: build imgsitephpdb image
+      docker_image:
+        build:
+          #le path à préciser est celui de la machine distante (pas la machine hôte)
+          path: /root/sitePHPDocker/contdbphp
+        name: imgsitephpdb
+
+    - name: build imgsitephp image
+      docker_image:
+        build:
+          #le path à préciser est celui de la machine distante (pas la machine hôte)
+          path: /root/sitePHPDocker/contsitephp
+        name: imgsitephp
+
+
+    - name: build contsitephpdb container
+      docker_container:
+        name: contsitephpdb
+        image: imgsitephpdb
+        ports: 
+          - "3306:3306"
+        state: started
+        # networks:
+        #   - name: "{{ sitephpnet }}"
+
+    - name: build contsitephp container
+      docker_container:
+        name: contsitephp
+        image: imgsitephp
+        ports: 
+          - "8001:80"
+        state: started
+
+    - name: create sitephpnet (docker network)
+      docker_network:
+        name: sitePHPnet
+        state: present
+        connected:
+          - contsitephpdb
+          - contsitephp
+        appends: yes
+      

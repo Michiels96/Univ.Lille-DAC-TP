@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <title>Learn Docker with me</title>
+    </head>
+    
+    <body>
+        <h1>Learn Docker With me</h1>   
+        <!--<h1><marquee scrollamount=15>Hellooooo</marquee></h1>-->
+        <form>
+            <label for="something">give something:</label>
+            <input type="text" id="something" name="something">  
+            <button type="button" onclick="sendFunction()">Click Me 123!</button> 
+        </form>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+        <script>
+            function sendFunction(){
+                console.log($("#something")[0].value);
+                
+            }
+        </script>
+    </body>
+</html>

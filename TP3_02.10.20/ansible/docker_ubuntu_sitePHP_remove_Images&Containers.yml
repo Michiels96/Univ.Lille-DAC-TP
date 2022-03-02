@@ -1,0 +1,56 @@
+---
+- name: Remove sitePHP Containers and Images
+  #hosts: serveurs_sans_ssh
+  hosts: all
+  become: true
+
+
+  tasks:
+    - name: Get a list of all running containers
+      docker_host_info:
+        containers: True
+      register: docker_info
+
+    - name: Stop all running containers
+      docker_container:
+        name: '{{ item.Names[0] | regex_replace("^/", "") }}'
+        state: absent
+      loop: '{{ docker_info.containers }}'
+
+    # - name: delete all containers
+    #   shell: |
+    #     docker rm $(docker ps -a -q);
+
+
+
+
+
+
+    - name: Get a list of all images
+      docker_host_info:
+        images: True
+      register: docker_info
+
+    - debug: msg="{{docker_info.images}}"
+
+    - name: remove imgsitephp
+      docker_image:
+        state: absent
+        name: imgsitephp
+
+    - name: remove imgsitephpdb
+      docker_image:
+        state: absent
+        name: imgsitephpdb
+
+    - name: remove sitephpnet (docker network)
+      docker_network:
+        name: sitePHPnet
+        state: absent
+        force: yes
+
+
+    - name: Recursively remove sitePHPDocker directory
+      file:
+        path: /root/sitePHPDocker
+        state: absent

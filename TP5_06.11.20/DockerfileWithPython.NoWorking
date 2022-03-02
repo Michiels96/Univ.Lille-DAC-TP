@@ -1,0 +1,50 @@
+# FROM python:3.7-alpine AS builder
+# COPY server.py /app/
+# WORKDIR /app
+# CMD ["python3","./server.py"]
+
+# FROM python:3.7-alpine as builder
+# COPY server.py /compiled/
+# WORKDIR /compiled
+# RUN python3 -m compileall server.py
+
+# RUN mkdir /install
+# WORKDIR /install
+# COPY requirements.txt /requirements.txt
+# RUN pip install --install-option="--prefix=/install" -r /requirements.txt
+
+# FROM builder
+# COPY --from=builder /install /usr/local
+# RUN mkdir app
+# COPY server.py /app
+# WORKDIR /app
+# CMD ["gunicorn", "-w 4", "server:app"]
+
+
+# FROM scratch AS runner
+# ENTRYPOINT ["/app"] 
+# FROM scratch AS runner
+# #COPY --from=builder /compiled/__pycache__ /runnable/
+# RUN mkdir /run
+# COPY server.py /run/
+# CMD ["sh", "/run/server.py"]
+#CMD ["/runnable/server.cpython-38.pyc"]
+
+
+# FROM python:3.7-alpine as base
+# FROM base as builder
+# RUN mkdir /install
+# WORKDIR /install
+# COPY requirements.txt /requirements.txt
+# RUN pip install --install-option="--prefix=/install" -r /requirements.txt
+# FROM base
+# COPY --from=builder /install /usr/local
+# COPY server.py /app
+# WORKDIR /app
+# CMD ["gunicorn", "-w 4", "main:app"]
+
+# Version fonctionnelle avec donnant une image de 41MB
+FROM python:3.7-alpine AS builder
+COPY server.py /app/
+WORKDIR /app
+CMD ["python3","./server.py"]

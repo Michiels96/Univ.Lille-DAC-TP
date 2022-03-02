@@ -1,0 +1,7 @@
+FROM mysql
+MAINTAINER Olivier Choquet
+ENV MYSQL_DATABASE=bdbn
+ENV MYSQL_ROOT_PASSWORD=ipl
+# la DB sera créée à l'intérieur du conteneur via 
+# mysql -u root -p < bdbn.sql
+COPY bdbn.sql /root/bdbn.sql

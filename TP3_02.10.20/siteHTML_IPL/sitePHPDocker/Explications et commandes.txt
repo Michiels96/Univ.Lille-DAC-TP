@@ -1,0 +1,48 @@
+DEMO 
+
+PUTTY - Permet le copier/coller de commandes 
+PUTTY - éléments intéressants
+Keyboard -> ctrl-H (gestion de la touche backspace)
+Features -> disable keypad (gestion pavé numérique)
+Fonts -> taille 18
+Connection -> Data -> Autologin -> root
+SSH -> Auth -> clé privée
+
+INSTANTANES
+Revenir à un état antérieur
+
+INSTALLATION DOCKER 
+copier/coller depuis syllabus
+
+WinSCP -> copie de fichier via SSH (idem que putty les paramètres peuvent être sauvés).
+
+EXPLICATIONS DOCKERFILE 
+contdbphp -> mysql -> docker hub -> voir environnement variables + fresh instance
+contsitephp -> php -> docker hub -> add extensions + search apache
+
+
+
+Dans le répertoire sitePHPDocker : 
+# création image site php code
+docker build -t imgsitephp contsitephp/.
+# création image site php db
+docker build -t imgsitephpdb contdbphp/.
+# création du conteneur avec la DB
+docker run -d --name contsitephpdb imgsitephpdb 
+# création du conteneur sitephp
+docker run -d -p 80:80 --name contsitephp imgsitephp
+# A ce stade 
+#-> lynx localhost affiche le site php mais erreur dans le menu "Livres" car connexion à la DB
+# Erreur :  Name or service not know -> erreur réseau
+# connecter les conteneurs -> les placer dans un même réseau
+# création de notre réseau
+docker network create sitephpnet 
+# connecter le premier conteneur
+docker network connect sitephpnet contsitephp
+# connecter le deuxième conteneur
+docker network connect sitephpnet contsitephpdb
+
+# A noter 
+Le fichier Db.class.php contient la connexion vers la DB et doit être éventuellement adapté.
+Il doit contenir le nom du conteneur -> docker utilisera le nom du conteneur au niveau réseau
+Le mot de passe pour la DB dans ce fichier doit être le même que celui précisé dans le Dockerfile du conteneur DB

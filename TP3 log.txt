@@ -1,0 +1,36 @@
+TP3 (02.10.2020)
+créer une page web qui a 1 input text qui envois une donné vers un autre container de type db et qui renvois la donnée dans une liste affichée en dessous de l'input.
+
+J'ai pour ma part mis en place le 'site des bonnes nouvelles' du BLOC 1 d'ipl.
+J'ai du rajouter une fonctionnalité d'ajout d'un livre (fichiers modifiés: Db.class.php / livre.php / LivresController.php).
+J'ai crée 2 playbooks, dont l'un supprime tt ce que je crée dans l'autre.
+
+lancer le playbook qui supprime tt:
+ansible-playbook -i hosts.yml docker_ubuntu_sitePHP_remove_Images\&Containers.yml --private-key ssh-private-key.txt 
+
+lancer le playbook qui crée tt:
+ansible-playbook -i hosts.yml docker_ubuntu_sitePHP_build_Images\&Containers.yml --private-key ssh-private-key.txt 
+
+Aller dans l'onglet 'livres' du site web puis attendre max 2 min s'il y a le probleme de connexion "connection refused".
+
+
+Pour pouvoir acceder aux données sans passer par phpmyadmin, il faut se connecter en ligne de commande au container mysql.
+
+commandes:
+- se connecter au container contsitephpdb:
+docker exec -it contsitephpdb /bin/bash
+- se connecter et pouvoir utiliser la commande 'mysql':
+mysql -p (un mdp sera demandé, introduire celui précisé lors de la création du container)
+- visualiser les bases de données enregistrées:
+show databases; (le ';' est nécessaire)
+- choisir la db 'bdbn'
+use bdbn;
+- visualiser les tables de la db:
+show tables;
+- faire une requete pour visualiser les 10 premiers tuples de la table 'livres':
+select * from livres limit 10;
+
+
+
+
+https://cloud.univ-lille.fr/horizon/auth/login/?next=/horizon/

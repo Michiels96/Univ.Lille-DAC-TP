@@ -1,0 +1,194 @@
+---
+- name: Install go_server and nginx reverse_proxy
+  hosts: all
+  become: true
+
+  tasks:
+    #copy directory part
+    - name: copy go_server files for every worker
+      copy:
+        #src: "/home/pierre/Bureau/DAC/dac-tp/TP5_06.11.20/ansible/Gofiles"
+        src: "/home/pierre/Bureau/Quadrimestre_1/DAC/dac-tp/TP5_06.11.20/ansible/nginx_loadbalencing/worker_go_server_files"
+        
+        dest: "/root/"
+      ignore_errors: yes
+
+    - name: copy reverse_proxy_nginx files for worker1
+      copy:
+        src: "/home/pierre/Bureau/Quadrimestre_1/DAC/dac-tp/TP5_06.11.20/ansible/nginx_loadbalencing/reverse_proxy_nginx_files"
+        dest: "/root/"
+      ignore_errors: yes
+      when: 
+        - ansible_default_ipv4.address == "172.28.100.111"
+
+
+
+
+    
+
+
+
+    #remove containers and images part
+    # supprimer le container et l'image si ils existent déjà
+    - name: stop and remove contnginx_reverse_proxy
+      docker_container:
+        name: contnginx_reverse_proxy
+        state: absent
+      when: 
+        - ansible_default_ipv4.address == "172.28.100.111"
+
+    - name: stop and remove contgo_server
+      docker_container:
+        name: contgo_server
+        state: absent
+
+    
+
+
+
+    - name: stop and remove go_serverimg on every worker
+      docker_image:
+        name: go_serverimg
+        state: absent
+        force_absent: yes
+
+    - name: stop and remove nginx_reverse_proxy_img 
+      docker_image:
+        name: nginx_reverse_proxy_img
+        state: absent
+        force_absent: yes
+      when: 
+        - ansible_default_ipv4.address == "172.28.100.111"
+
+
+
+
+    # - name: delete onHostNetwork (docker network)
+    #   docker_network:
+    #     name: onHostNetwork
+    #     state: absent
+    #   when: 
+    #   - ansible_default_ipv4.address == "172.28.100.111"
+
+
+   
+    #build images part
+    - name: build go_serverimg image on every worker
+      docker_image:
+        build:
+          path: /root/worker_go_server_files
+        name: go_serverimg
+
+
+    - name: build nginx_reverse_proxy_img image on worker1
+      docker_image:
+        build:
+          path: /root/reverse_proxy_nginx_files
+        name: nginx_reverse_proxy_img
+      when: 
+        - ansible_default_ipv4.address == "172.28.100.111"
+
+
+    # - name: create load_network (docker network)
+    #   docker_network:
+    #     name: load_network
+    #     state: absent
+    #     appends: yes
+
+
+    #build containers part
+    - name: build contgo_server container for worker1 (172.28.100.111)
+      docker_container:
+        name: contgo_server
+        image: go_serverimg
+        ports: 
+          - "8000:80"
+        state: started
+        # networks:
+        #   - name: "load_network"
+        # network_mode: host
+        # networks:
+        #   - name: bridge
+            # ipv4_address: 172.17.0.1
+        env:
+          HOSTNAME: "{{ worker1Hostname }}"
+      when: 
+        - ansible_default_ipv4.address == "172.28.100.111"
+
+    - name: build contgo_server container for worker2 (172.28.100.99)
+      docker_container:
+        name: contgo_server
+        image: go_serverimg
+        ports: 
+          - "8000:80"
+        state: started
+        # networks:
+        #   - name: "load_network"
+        env:
+          HOSTNAME: "{{ worker2Hostname }}"
+      when: 
+        - ansible_default_ipv4.address == "172.28.100.99"
+
+    - name: build contgo_server container for worker3 (172.28.100.51)
+      docker_container:
+        name: contgo_server
+        image: go_serverimg
+        ports: 
+          - "8000:80"
+        state: started
+        # networks:
+        #   - name: "load_network"
+        env:
+          HOSTNAME: "{{ worker3Hostname }}"
+      when: 
+        - ansible_default_ipv4.address == "172.28.100.51"
+
+    - name: build contgo_server container for worker4 (172.28.100.19)
+      docker_container:
+        name: contgo_server
+        image: go_serverimg
+        ports: 
+          - "8000:80"
+        state: started
+        # networks:
+        #   - name: "load_network"
+        env:
+          HOSTNAME: "{{ worker4Hostname }}"
+      when: 
+        - ansible_default_ipv4.address == "172.28.100.19"
+
+
+
+
+    - name: build contnginx_reverse_proxy container for worker1 (172.28.100.111)
+      docker_container:
+        name: contnginx_reverse_proxy
+        image: nginx_reverse_proxy_img
+        ports: 
+          - "9080:9080"
+        state: started
+        # network_mode: host
+        # network_mode: bridge
+        # networks:
+        #   - name: bridge
+      when: 
+        - ansible_default_ipv4.address == "172.28.100.111"
+
+
+
+    # - name: create onHostNetwork (docker network)
+    #   docker_network:
+    #     name: onHostNetwork
+    #     state: present
+    #     connected:
+    #       - contnginx_reverse_proxy
+    #       # - contgo_server
+    #     appends: yes
+    #   when: 
+    #     - ansible_default_ipv4.address == "172.28.100.111"
+
+    
+      
+
+
+

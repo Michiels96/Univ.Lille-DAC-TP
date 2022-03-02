@@ -1,0 +1,92 @@
+---
+- name: Install node-exporter containers and prometheus container
+  hosts: all
+  become: true
+
+  tasks:
+    #copy directory part
+    - name: copy prometheus.yml file for worker 2.
+      copy:
+        src: "/home/pierre/Bureau/Quadrimestre_1/DAC/dac-tp/TP6_20.11.20/ansible/prometheus"
+        dest: "/root/"
+      ignore_errors: yes
+      when: 
+        - ansible_default_ipv4.address == "172.28.100.99"
+
+    - name: copy blackbox.yml file for worker 2.
+      copy:
+        src: "/home/pierre/Bureau/Quadrimestre_1/DAC/dac-tp/TP6_20.11.20/ansible/blackbox"
+        dest: "/root/"
+      ignore_errors: yes
+      when: 
+        - ansible_default_ipv4.address == "172.28.100.99"
+
+
+
+    - name: stop and remove contgrafana
+      docker_container:
+        name: contgrafana
+        state: absent
+      when: 
+        - ansible_default_ipv4.address == "172.28.100.99"
+
+    - name: stop and remove contprometheus
+      docker_container:
+        name: contprometheus
+        state: absent
+      when: 
+        - ansible_default_ipv4.address == "172.28.100.99"
+
+    - name: stop and remove contblackbox_exporter
+      docker_container:
+        name: contblackbox_exporter
+        state: absent
+
+    
+
+
+
+    # impossible d'ajouter l'argument '--config.file=/config/blackbox.yml'
+    # - name: build contblackbox_exporter container for worker 2.
+    #   docker_container:
+    #     name: contblackbox_exporter
+    #     image: prom/blackbox-exporter:master
+    #     command: --config.file=/config/blackbox.yml
+    #     ports: 
+    #       - "9115:9115"
+    #     state: started
+    #     volumes:
+    #       - /root/blackbox/blackbox.yml:/config
+    #   when: 
+    #     - ansible_default_ipv4.address == "172.28.100.99"
+
+    - name: build contblackbox_exporter container for worker 2.
+      shell: 
+        cmd: docker run --rm -d -p 9115:9115 --name contblackbox_exporter -v /root/blackbox/:/config prom/blackbox-exporter:master --config.file=/config/blackbox.yml
+      when: 
+        - ansible_default_ipv4.address == "172.28.100.99"
+
+    
+
+    - name: build contprometheus container for worker 2(172.28.100.99)
+      docker_container:
+        name: contprometheus
+        image: prom/prometheus
+        ports: 
+          - "9090:9090"
+        state: started
+        volumes:
+          - /root/prometheus/prometheus_blackbox.yml:/etc/prometheus/prometheus.yml
+      when: 
+        - ansible_default_ipv4.address == "172.28.100.99"
+
+    - name: build contgrafana container for worker 2(172.28.100.99)
+      docker_container:
+        name: contgrafana
+        image: grafana/grafana
+        ports: 
+          - "3000:3000"
+        state: started
+      when: 
+        - ansible_default_ipv4.address == "172.28.100.99"
+

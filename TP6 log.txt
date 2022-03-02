@@ -1,0 +1,261 @@
+TP6 (13.11.2020)
+Partie 1:
+Monitoring
+
+Partie test sur ma propre machine:
+node_exporter / prometheus / graphana
+
+
+Node-exporter est à lancer sur une machine pour qu'il expose au format http les données de la machine.
+Prometheus va aller chercher ces données et les stockées. Depuis prometheus on peut en sortir des statistiques.
+Graphana permet d'en faire des graphes sur ces stats.
+
+#docker run -d --rm -p 9100:9100 -v /:/hostfs --name node prom/node-exporter
+9100 est le port par défaut de node-exporter
+On va créer un volume (on va juste binder l'arborescence de la machine hote au chemin /hostfs du container)
+Il faut lier le réseau du container avec le réseau de la machine hote (= et donc --network host)
+prom/node-exporter est l'image dispo sur docker hub.
+
+Les informations utiles de node-exporter:
+CPU: 
+  rate(node_cpu_seconds_total{mode="system",instance="addrIPDUnWorker"}[1m]) 
+    => renvoie pour chaque core du CPU l'utilisation en mode 'system' pour la dernière minute
+  (voir https://www.robustperception.io/understanding-machine-cpu-usage pour d'autres metriques)
+
+RAM:
+  RAM disponible:
+    node_memory_MemFree_bytes{instance="addrIPDUnWorker"}
+  RAM totale:
+    node_memory_MemTotal_bytes{instance="addrIPDUnWorker"}
+Bande passante: 
+  bytes reçus:
+    rate(node_network_receive_bytes_total{device="ens3",instance="addrIPDUnWorker"}[1m])
+      => ens3 étant la carte réseau du worker conn. à internet
+  bytes transmis:
+    rate(node_network_transmit_bytes_total{device="ens3",instance="addrIPDUnWorker"}[1m])
+
+Espace disponible pour les utilisateurs non-root: 
+  rate(node_filesystem_avail_bytes[1m])
+    => donne toutes les partitions du disque avec la taille des dossiers
+  node_filesystem_avail_bytes{device="/dev/vda1",instance="addrIPDUnWorker",mountpoint="/hostfs"}
+    => donne la taille encore disponible sur le disque
+
+
+
+
+
+
+Prometheus 
+permet de récuperer et analyser les données de node exporter.
+Aller dans le dossier /TP6_20.11.20/ et lancer:
+#docker run -d -p 9090:9090 -v "$(pwd)/prometheus_monitoring.yml":/etc/prometheus/prometheus.yml --link node --name prometheus prom/prometheus
+où je met en place un volume où mon fichier prometheus (voir TP6_20.11.20/prometheus_monitoring.yml) est lié dans /etc/prometheus/ avec le nom de fichier 'prometheus.yml'.
+et j'utilise l'image 'prom/prometheus'.
+
+
+
+Graphana
+Est un outil qui permet d'avoir des graphes plus esthétiques
+
+#docker run --rm -p 3000:3000 --link prometheus grafana/grafana
+(éventuellement --net host)
+
+user: admin
+passwd: admin
+(inutile de réinitialiser le mdp)
+Ajouter une datasources -> prometheus -> url -> IP de la machine hébergant prometheus
+Aller sur Dashboards -> add new panel -> mettre dans le champ 'Metrics' la query testée auparavant sur prometheus.
+
+
+
+
+Partie Mise en place sur mes 4 workers:
+Prometheus et graphana seront 2 containers distincts sur le worker 2 (demande du professeur) car celui avec loadbalencer nginx prends déjà bcp de CPU
+Worker1: 
+  - loadbalencer nginx:9080
+  - serveur_go:8000
+  - node-exporter:9100
+Worker2:
+  - serveur_go:8000
+  - node-exporter:9100
+  - prometheus:9090
+  - grafana:3000
+Worker3:
+  - serveur_go:8000
+  - node-exporter:9100
+Worker4:
+  - serveur_go:8000
+  - node-exporter:9100
+
+(ts les fichiers utilisés sont dans /TP6_20.11.20/ansible)
+
+commande:
+Aller dans le dossier /TP6_20.11.20/ansible/ et lancer:
+#ansible-playbook -i hosts.yml grafana_prometheus_and_nodeExporter.yml --private-key ssh-private-key.txt
+
+
+L'image représentant les graphes grafana des 4 workers se situe dans /TP6_20.11.20/
+
+extra: (commande pour transferer un fichier via scp)
+scp -i ssh-private-key.txt -v DAC/tmp.avi ubuntu@172.28.100.111:/home/ubuntu
+
+
+
+
+
+
+
+Partie 2:
+Status des instances
+
+whitebox:
+accès à la machine sans authentification
+blackbox:
+accès à la machine avec authentification
+
+
+blackbox-exporter permet de récupérer des informations sur la charge en temps réel des protocoles/ports HTTP, HTTPS, DNS, TCP et ICMP.
+Il ne fournit donc pas des informations sur le matériel de la machine comme le fait node-exporter.
+
+blackbox-exporter est un module de prometheus, un peu comme une extension.
+Il permet, quand on lui a fourni le module à exécuter, de récupérer des informations sur la charge en temps réel 
+des protocoles/ports HTTP, HTTPS, DNS, TCP et ICMP des targets passés en paramètre dans le fichier prometheus.yml
+
+
+étapes:
+1) on configure le module pour parametrer quels ports et quels versions de ports (ex: http/1.0 ou http/1.1 etc.) on va vérifier sur les targets.
+2) on lance blackbox exporter avec le fichier de config crée en étape1 (blackbox.yml)
+3) on adapte notre prometheus.yml pour qu'il utilise le module blackbox crée en étape 1 et 2
+4) on lance prometheus
+
+
+Aller dans le dossier /TP6_20.11.20/ et lancer:
+pour blackbox:
+#docker run --rm -p 9115:9115 -v "$(pwd)":/config prom/blackbox-exporter:master --config.file=/config/blackbox.yml
+pour prometheus:
+#docker run --rm -p 9090:9090 -v "$(pwd)/prometheus_blackbox.yml":/etc/prometheus/prometheus.yml prom/prometheus
+
+
+
+
+Partie 3:
+Test de charge
+
+La query utile pour vérifier la charge des requetes HTTP:
+probe_http_duration_seconds{instance="192.168.1.4",job="blackbox"}
+
+ce query permet de récolter sur un graphe la charge nécessaire pour chaque étape de connexion du protocole http.
+Les étapes sont:
+- resolve time
+  représente le temps nécessaire à récupérer l'addr IP du serveur auquel on veut se connecter auprès d'un serveur DNS
+  si on insère directement l'addr IP dans la barre d'addr URL, ce temps est de 0 millisec. (=> pas de conversion à faire)
+- connect time
+  représente le temps nécessaire à rejoindre le serveur auquel on veut se connecter
+- processing time
+  représente le temps nécessaire à ce que l'application sur le serveur distant met à traiter la requête.
+- transfer time
+  représente le temps nécaissaire à ce que le serveur distant puisse envoyer toute sa réponse au client.
+  (c'est en qque sorte le rôle opposé au connect time)
+- tls
+  (à confirmer) représente le temps nécessaire lors d'une requête https à crypter la requête.
+
+(https://knowledge.broadcom.com/external/article/48362/meaning-of-performance-graph-legends-res.html)
+
+
+pour grafana:
+#docker run --rm -p 3000:3000 grafana/grafana
+
+
+commande pour envoyer 10000 requetes vers une cible: (DOS)
+#for i in $(seq 10000); do (curl -s 'http://192.168.1.4:8000' > /dev/null &); done;
+
+
+
+
+
+Partie Mise en place sur mes 4 workers de la partie 2 et 3:
+blackbox-exporter sera un container distinct sur le worker 2. 
+Il ne doit pas être installé sur chaque machine car celui-ci est un module pour prometheus.
+Il doit donc être installé seulement 1 seule fois.
+Worker1: 
+  - loadbalencer nginx:9080
+  - serveur_go:8000
+  - node-exporter:9100
+Worker2:
+  - serveur_go:8000
+  - node-exporter:9100
+  - prometheus:9090
+  - grafana:3000
+  - blackbox-exporter:9115
+Worker3:
+  - serveur_go:8000
+  - node-exporter:9100
+Worker4:
+  - serveur_go:8000
+  - node-exporter:9100
+
+(ts les fichiers utilisés sont dans /TP6_20.11.20/ansible)
+
+
+Le problème suivant est soulevé:
+HTTP correspond au port 80 et mes serveurs 'go' émettent sur le port 8000 sur chaque worker.
+Pour corriger cela, j'ai ajouté à chaque target le port 8000 dans le fichier prometheus_blackbox.yml. 
+De cette manière, 
+prometheus accèdera au worker au port 8000 au lieu de 80
+
+
+commande:
+Aller dans le dossier /TP6_20.11.20/ansible/ et lancer:
+#ansible-playbook -i hosts.yml grafana_prometheus_and_blackbox.yml --private-key ssh-private-key.txt
+
+Dans le cas de la construction du container de blackbox, il m'est impossible de passer des arguments tels que 
+'--config.file=/config/blackbox.yml'
+https://stackoverflow.com/questions/35540061/pass-command-line-arguments-to-docker-with-ansible
+https://groups.google.com/g/ansible-project/c/DXCg-2drIIE?pli=1
+
+Pour corriger cela, j'utilise shell dans mon playbook ansible.
+
+
+
+Querys:
+Worker1:
+  probe_http_duration_seconds{group="workers_machines",instance="172.28.100.111:8000",job="blackbox"}
+Worker2:
+  probe_http_duration_seconds{group="workers_machines",instance="172.28.100.99:8000",job="blackbox"}
+Worker3:
+  probe_http_duration_seconds{group="workers_machines",instance="172.28.100.51:8000",job="blackbox"}
+Worker4:
+  probe_http_duration_seconds{group="workers_machines",instance="172.28.100.19:8000",job="blackbox"}
+
+load_balencer du worker1:
+  probe_http_duration_seconds{group="load_balencer",instance="172.28.100.111:9080",job="blackbox"}
+
+Surcharge réseau DoS:
+#hping3 --faster 
+https://kchristianthomas.wordpress.com/attaque-ddos-sous-linux/
+https://linuxhint.com/hping3/
+https://tools.kali.org/information-gathering/hping3
+
+ou sinon utiliser l'outil 'hulk'
+https://github.com/grafov/hulk
+
+terminé à :
+probe_duration_seconds{instance="172.28.100.111:8080",job="blackbox"}
+soft. utilisé: Hulk
+(
+  docker build -t hulk .
++
+  docker run -it -eHULKMAXPROCS=10096 hulk -site http://172.28.100.111:9080/
+)
+
+L'image représentant les graphes grafana sur la charge du protocole HTTP des 4 workers et du load_balencer se situe dans /TP6_20.11.20/
+
+
+
+Pour pouvoir qnd même vérifier la charge réseau lorsqu'on éteint 1 worker sur les 4, on regarde le temps nécessaire pour que ttes les requetes soient terminées avec 4 workers
+et faire la meme chose avec 3 workers et regarder si il y a un changement au niveau du temps.
+
+
+
+
+Les résultats sont indiqués dans l'image charche_loadbalencer2.png

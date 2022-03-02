@@ -1,0 +1,17 @@
+scrape_configs:
+- job_name: blackbox
+  metrics_path: /probe
+  params: 
+    module: [http_2xx]
+
+  static_configs:
+    - targets: [ '192.168.1.4:8000' ]
+
+  #sert à faire de la string parsing. Dès qu'on a plusieurs targets, la requete ajoute un 's' a targets, ce qui perturbe prometheus
+  relabel_configs:
+    - source_labels: [__address__]
+      target_label: __param_target
+    - source_labels: [__param_target]
+      target_label: instance
+    - target_label: __address__
+      replacement: 192.168.1.4:9115

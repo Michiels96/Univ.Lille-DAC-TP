@@ -1,0 +1,137 @@
+TP4 (09.10.2020)
+Terraform
+
+Il faut utiliser cet outil pour pouvoir créer 4 instances d'une image (ubuntu) sur openstack.
+
+Tout d'abord, il faut l'installer sur sa machine:
+https://learn.hashicorp.com/tutorials/terraform/install-cli
+
+Pour ma part, j'ai déplacé le fichier binaire terraform à l'emplacement /usr/bin, 
+là ou se trouve la majorité des autres commandes.
+
+terraform ne permet pas de spécifier l'exécution (plan, apply, ...) sur un fichier précisé en parametre.
+Chaque exécution est unique dans un dossier (cad. qu'il ne peut y avoir plusieurs fichiers .tf personalisés dans un même dossier).
+
+
+1ere exercice, création d'une nouvelle pair de clé ssh sur openstack via terraform.
+Aller sur la doc de terraform et chercher ce qu'il faut mettre dans un fichier .tf pour créer une paire de clé ssh.
+(https://registry.terraform.io/providers/terraform-provider-openstack/openstack/latest/docs/resources/compute_keypair_v2)
+
+Depuis le dossier 'create_new_ssh_key_on_openstack', exécuter les commandes: 
+#terraform init
+(si il y a un probleme avec la version de terraform, il faut exécuter la commande #terraform 0.13upgrade .)
+#terraform validate
+
+Si tout est valide, on peut continuer.
+
+La commande #terraform plan 
+permet de simuler l'exécution du fichier terraform sur openstack mais comme on a encore rien lié dessus 
+(les variables auth_url' et 'cloud' sont inexistantes) il faut lier notre compte openstack à terraform via l'API d'openstack.
+
+Pour télécharger le fichier d'API, il faut aller sur openstack et cliquer sur le bouton 
+'Download OpenStack RC file' dans l'onglet API Access.
+
+Après avoir télécharger le fichier RC, il faut le déplacer dans le dossier du fichier .tf 
+(pas obligé mais plus facile pour le développement)
+Ensuite, pour extraire toutes les variables du fichier RC et les rendre commun au terminal couront, j'utilise 'source':
+#source pierre.michiels.etu-openrc.sh
+
+(le mot de passe sera demandé pour le faire)
+
+Ensuite #terraform plan
+puis 
+#terraform apply (pour appliquer les changements)
+
+
+2eme exercice, créer les 4 instances d'openstack via terraform.
+Même procédure, créer un autre dossier 'create_new_instance_on_openstack' avec un fichier main.tf
+qui contiendra le contenu suivant:
+resource "openstack_compute_instance_v2" "basic" {
+  name            = "basic"
+  image_id        = "bf420b24-7df0-485f-ae29-1f778c3d1df4"
+  flavor_id       = "3"
+  key_pair        = "ssh-key"
+  security_groups = ["default"]
+
+  metadata = {
+    this = "that"
+  }
+
+  network {
+    name = "my_network"
+  }
+}
+
+les clés 'image_id', 'key_pair', 
+('flavor_id' a remplacer par 'flavor_name' car flavor_id est introuvable sur l'interface web d'openstack),
+et network sont à modifier.
+
+Après modifications, j'aurai ceci:
+
+resource "openstack_compute_instance_v2" "basic" {
+  name            = "basic"
+  image_id        = "bf420b24-7df0-485f-ae29-1f778c3d1df4"
+  flavor_name     = "moyenne"
+  key_pair        = "ssh-key"
+  security_groups = ["default"]
+
+  network {
+    name = "prive"
+  }
+}
+
+(la clé "ssh-key" existait déjà auparavant sur mon compte openstack)
+
+commande utile: #terraform show 
+permet de voir le log de terraform (en gros, tout ce que terraform a fait comme exécution).
+
+
+Donc pour créer 4 instances sur openstack, mon fichier main.tf aura comme contenu:
+
+resource "openstack_compute_instance_v2" "ubuntu-1" {
+  name            = "ubuntu-1"
+  image_id        = "bf420b24-7df0-485f-ae29-1f778c3d1df4"
+  flavor_name     = "moyenne"
+  key_pair        = "ssh-key"
+  security_groups = ["default"]
+
+  network {
+    name = "prive"
+  }
+}
+
+resource "openstack_compute_instance_v2" "ubuntu-2" {
+  name            = "ubuntu-2"
+  image_id        = "bf420b24-7df0-485f-ae29-1f778c3d1df4"
+  flavor_name     = "moyenne"
+  key_pair        = "ssh-key"
+  security_groups = ["default"]
+
+  network {
+    name = "prive"
+  }
+}
+
+resource "openstack_compute_instance_v2" "ubuntu-3" {
+  name            = "ubuntu-3"
+  image_id        = "bf420b24-7df0-485f-ae29-1f778c3d1df4"
+  flavor_name     = "moyenne"
+  key_pair        = "ssh-key"
+  security_groups = ["default"]
+
+  network {
+    name = "prive"
+  }
+}
+
+resource "openstack_compute_instance_v2" "ubuntu-4" {
+  name            = "ubuntu-4"
+  image_id        = "bf420b24-7df0-485f-ae29-1f778c3d1df4"
+  flavor_name     = "moyenne"
+  key_pair        = "ssh-key"
+  security_groups = ["default"]
+
+  network {
+    name = "prive"
+  }
+}

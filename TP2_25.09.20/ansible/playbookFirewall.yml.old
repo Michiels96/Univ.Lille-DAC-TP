@@ -1,0 +1,19 @@
+---
+- name: firewalld installation
+  hosts: all
+  become: true
+
+  tasks:
+    - name: firewalld
+      apt:
+        name: firewalld
+        state: present
+
+    - name: allow ssh
+      command: firewall-cmd --permanent --zone=public --add-port=22/tcp
+
+    - name: allow http
+      command: firewall-cmd --permanent --zone=public --add-port=80/tcp
+
+    - name: allow https
+      command: firewall-cmd --permanent --zone=public --add-port=443/tcp

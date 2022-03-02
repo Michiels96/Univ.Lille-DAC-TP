@@ -1,0 +1,204 @@
+TP5 (06.11.2020)
+Dockeriser et Loadbalancer 
+Docker avancé - Docker Image
+Création d'un serveur Web simple:
+
+- J'utilise le langage de programmation Python car c'est le langage le moins verbeux que je maitrise 
+    (Python parmi Java, Javascript et C)
+
+Dockerfile:
+    #va prendre l'image officielle de python3 sur le hub Docker
+    FROM python:3
+    #va copier le fichier server.py à l'emplacement '/'
+    ADD server.py /
+    #va exécuter la commande [...] quand l'image se lancera
+    CMD ["python3","./server.py"]
+
+Pour créer l'image:
+#docker build -t python_server .
+Pour construire un container de l'image:
+#docker run --rm -ti -p 8080:8080 -e HOSTNAME=$(hostname) python_server
+(--rm permet de supprimer le container dès son arrêt)
+
+Réduire l'image le plus possible:
+installer 'dive'
+#wget https://github.com/wagoodman/dive/releases/download/v0.9.2/dive_0.9.2_linux_amd64.deb
+#apt install ./dive_0.9.2_linux_amd64.deb
+
+Utiliser le compilateur pour compiler le fichier puis après avoir crée le binaire, 
+on supprime les fichiers du compilateur.
+
+
+Après quelques heures de recherche, j'ai abandonné l'utilisation de python pour réduire la taille de l'image en essayant d'avoir une image qui ne contient que les fichiers nécessaires à l'exécution sans avoir de compilateur.
+Le problème est que Python est configuré pour se compiler et s'exécuter avec la même commande => "python" ou "python3". 
+Dès lors les fichiers nécessaire pour pouvoir exécuter la commande "python" ou "python3" ne peuvent être enlevés.
+D'autre part, il m'est impossible d'exécuter un fichier python compilé (.pyc) avec un interpreteur "sh" ou "bash".
+Dès lors, exécuter un fichier python compilé depuis l'image scratch m'est impossible.
+Si je veut exécuter mon server.py via "bash" ou "sh", je devrai lui ajouter en début de fichier la ligne "#!/usr/bin/env python3" qui nécessite d'avoir la commande python3 installé mais scratch ne l'a pas, donc cela reste impossible.
+
+La seule possibilité pour réduire l'image à laquelle je suis arrivé c'est de choisir dès le départ une image python qui ne contient que le strict nécessaire: python:3.7-alpine.
+
+A la fin du processus, j'ai une image de 41MB au lieu d'avoir une image de 880MB avec l'image python:3.
+
+Par la suite j'ai donc utilisé le langage go comme démontré dans la présentation du prof.
+
+Du coup, mon Dockerfile pour un serveur go:
+#va récupérer l'image golang:alpine sur le hub de Docker
+FROM golang:alpine AS builder
+# copie le fichier main.go dans le dossier /app
+COPY main.go /app/
+# se déplace dans le dossier /app
+WORKDIR /app
+#compile le fichier main.go -w et -s pour utiliser le moins de librairies possibles
+RUN CGO_ENABLED=0 go build -ldflags="-w -s" main.go
+
+#Depuis une image qui ne sert qu'a exécuter un script via sh
+FROM scratch AS runner
+# on copie le fichier compilé precédemment
+COPY --from=builder /app/main /app/main
+#on exécute le fichier compilé "main"
+ENTRYPOINT ["/app/main"]
+
+Pour construire l'image "go_server":
+#dockebuild -t go_server .
+Pour construire le container de l'image "go_server", 
+le rendre accessible depuis le port 8080 sur la mach. hôte et y insérer une variable d'environnement HOSTNAME:
+#docker build -t go_server .
+#docker run --rm -ti -p 8080:80 -e HOSTNAME=$(hostname) go_server
+
+Au final l'image contenant le fichier compilé "main" aura une taille de 4.55MB.
+
+
+Déploiement de l'image:
+J'utilise l'outil Ansible pour déployer l'image sur mes 4 instances d'openstack
+Commande pour exécuter le playbook ansible:
+#ansible-playbook -i hosts.yml serveur_go.yml -e hostname=$(hostname) --private-key ssh-private-key.txt
+
+Tous les fichiers utilisés sont dans TP5_06.11.20/ansible/
+
+
+Load balancing
+- Quelles sont les différents types de ​loadbalancing?
+(https://kemptechnologies.com/load-balancer/load-balancing-algorithms-techniques/)
+1. Round-robin load balencing:
+    Les Serveurs noeuds sont enregistrés dans une liste.
+    Le serveur maitre va parcourir les serveurs de la liste 1 à 1 et y distribuer une requète pour chaque serveur de la liste.
+    Quand le serveur maitre est au dernier serveur de la liste, il recommence le parcours à 0 etc.
+
+2. Round-robin pondéré:
+    Le serveur maitre va parcourir aussi une liste contenant tous les serveurs noeuds mais en vérifiant la capacité de chacun-d'eux.
+    Chaque serveur se voit attribuer un chiffre qui indique sa puissance à pouvoir gérer une ou plusieurs requetes à la fois.
+    Si par exemple on a 3 serveurs noeuds et qu'il y a 5 requètes séquentielles clientes à distribuer et que le serveur noeud 1 est 2 fois plus puissant
+    que les serveurs noeuds 2 et 3, le serveur noeud 1 pourra gérer 2 fois plus de requetes que les serveurs noeuds 2 et 3.
+    Decette manière, si on a 5 requetes clientes, les 2 premières requetes iront au serveurs 1 la 3eme au 2eme serveur noeud, 
+    la 4eme requete au 3 eme seveur noeud et la 5eme (supposant qu'elle a terminé avec au moins une des 2 requetes 
+    qui lui ont été donné au début) au serveur noeud 1.
+
+3. Dernière connexion:
+    Chaque requète client est distribuée sur le serveur noeud qui à le moins de connexions actives.
+
+4. Dernière connexion pondéré:
+    Même chopse que pour la technique de "dcernière connexion" 
+    sauf qu'en plus le serveur maitre attribue un chiffre indiquant la puissance de calcul des serveurs noeuds.
+    Ainsi, plus de requètes clientes seront distribuées au serveurs noeuds 
+    se démarquant par leur puissance de calcul par rapport aux autres serveurs noeuds.
+
+5. Resource Based (Adaptive):
+    C'est la même technique que le round-robin pondéré sauf qu'ici le chiffre indiquant la puissance du serveur noeud 
+    est dynamiquement/constamment mis à jour par un agent installé sur les serveurs noeuds eux mêmes.
+    De cette manière, a chaque nouvelle requète cliente, 
+    le serveur maitre va intérroger l'agent de chaque serveur pour savoir si le serveur noeud en question est capable de traiter la requete ou non.
+
+6. Resource Based (SDN Adaptive):
+    Même chose que le Resource Based (Adaptive) sauf qu'ici, l'agent installé sur chaque serveur noeud, prends en compte les informations 
+    l'état des applications en cours d'exécution sur eux, la santé de l'infrastructure réseau et le niveau de congestion du réseau.
+
+7. Source IP Hash:
+    Cet algorythme est très utile pour des sites web qui gèrent une connexion des clients. 
+    Au moment où un client se connecte, un hash est géneré et stockée sur un serveur noeud. 
+
+    Si le client n'envois plus de requète pendant un laps de temps mais dont la durée est inférieur au temps de vie du hash, 
+    ce hash restera aussi sauvegardé dans une table de hashage situé sur le serveur maitre lui permettant d'indiquer, 
+    lors d'une nouvelle requete du même client, de rediriger la nouvelle requète du client vers le serveur noeud avec lequel il s'est connecté pour la première fois.
+
+
+
+- Lequel est le plus adapté à notre situation?
+    J'ai 4 machines de même puissance de calcul sur openstack, il m'est donc inutile d'utiliser un loadbalencer de complexité supérieure que le Round-robin.
+
+paquets pour faire du loadbalencing: nginx et caddy
+J'utilise nginx:
+https://docs.nginx.com/nginx/admin-guide/load-balancer/http-load-balancer/
+
+L'architecture sera la suivante (plus à jour, nouvelle version voir "Modification d'architecture):
+j'ai 4 workers (serveurs noeuds) sur openstack. Ceux-ci seront dirigés par un reverse-proxy qui est mon PC Ubuntu 20 Virtuel.
+
+Pour installer le reverse proxy et donc le paquet nginx, j'ai suivi ce tuto:
+https://www.digitalocean.com/community/tutorials/comment-installer-nginx-sur-ubuntu-18-04-fr
+
+Pour mettre en place un reverse-proxy avec nginx, il suffit d'aller modifier le fichier nginx.conf et de redémarrer le service après changements.
+
+Le contenu ajouté dans  /etc/nginx/nginx.conf (balise http) est le suivant:
+http{
+    ...
+    upstream group1{
+        server 172.28.100.90:8000;
+        server 172.28.100.51:8000;
+        server 172.28.100.111:8000;
+        server 172.28.100.72:8000;
+    }
+    server {
+        listen  9091;
+        location / {
+            proxy_pass http://group1;
+        }
+    }
+}
+
+"group1" est le groupe qui contient tous les workers avec lequel nginx va rediriger la requète cliente qu'il a reçu.
+Sans avoir ajouter de "nginx method", celui-ci va choisir le worker via la méthode du Round-robin.
+
+La section "server" permet d'indiquer entre autre le port d'écoute du serveur nginx; celui-ci va faire du port-forwarding de 80 vers 9091.
+Cette section permet aussi d'indiquer vers quel groupe rediriger la requète cliente via la directive proxy_pass.
+
+Un nouveau fichier serveur_go_different_hostname_for_ip.yml est utilisé pour prendre en compte un hostname différent pour chaque worker.
+
+
+Commande pour exécuter le playbook ansible en prennant en compte des hostname différents pour chaque worker:
+#ansible-playbook -i hosts.yml serveur_go_different_hostname_for_ip.yml --extra-vars "@workers_hostname.json" --private-key ssh-private-key.txt
+
+
+
+Modification d'architecture:
+Sur les 4 workers, l'une d'entre elles sera un worker et aussi le reverse-proxy.
+(172.28.100.90)
+(https://towardsdatascience.com/sample-load-balancing-solution-with-docker-and-nginx-cf1ffc60e644)
+
+Dockeriser nginx:
+Après avoir créée l'image pour nginx, je l'ai testée sur ma mach. virt. avec les commandes
+#docker build -t nginx_reverse_proxy_img .
+#docker run --rm -ti -p 9080:9090 nginx_reverse_proxy_img
+url: 127.0.0.1:9080
+
+Après, je met en place cette image et container via ansible sur la machine (172.28.100.90).
+
+Par soucis de configuration, j'ai abandonné les modifications dans nginx.conf pour avoir un fichier propre pour mon reverse_proxy: reverse_proxy.conf
+Même commande pour lancer le playbook ansible:
+
+Aller dans le dossier /TP5_06.11.20/ansible/nginx_loadbalencing/ et lancer:
+#ansible-playbook -i hosts.yml serveur_go_different_hostname_for_ip.yml --extra-vars "@workers_hostname.json" --private-key ssh-private-key.txt
+
+Tous les fichiers utilisés sont dans TP5_06.11.20/ansible/nginx_loadbalencing/
+
+
+Edit sur le résultat final:
+Durant la séance du 20.11.20, j'ai essayé de résoudre avec le professeur le problème où nginx refuse de reconnaitre (host unreachable) 
+le worker qui se trouve sur la même machine qui contient le container nginx. Après avoir essayéde debugger le problème je n'ai pu résoudre le problème. 
+Le professeur m'a permis de continuer les TP's suivants sans me soucier de ce problème.
+J'ai donc, pour les TP's suivants, 4 machines dont 3 workers (container http go) et 1 machine qui joue le rôle de loadbalencer (container nginx).
+
+
+re - edit:
+J'ai finalement trouvé le probleme. C'est lors d'un TP précédent 
+où j'ai installé un firewall qui en est la cause. 
+J'ai donc désinstallé firewalld et ts les 4 workers fonctionnent

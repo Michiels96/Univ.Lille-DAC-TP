@@ -1,0 +1,49 @@
+TP2 (25.09.2020)
+comment fonctionne ansible => 
+https://buzut.net/automatiser-deploiement-gestion-serveurs-ansible/
+http://www.wikiwai.com/2019/08/08/debuter-avec-ansible-sa-gestion-de-configuration/
+
+- vérifier si ansible est installé: #ansible --version​
+
+- créer fichier hosts pour contacter les 4 machines virtuelles
+fichier hosts.yml:
+all:
+  hosts:
+    ubuntu@172.28.100.72:
+    ubuntu@172.28.100.47:
+    ubuntu@172.28.100.124:
+    ubuntu@172.28.100.113:
+
+commande pour tester la connexion avec les 4 machines:
+#ansible -i hosts.yml all -m ping --private-key ssh-private-key.txt 
+
+playbook est le script qu'on va exécuter sur le parc de machines défini dans hosts.yml
+- créer un playbook pour installer docker et un firewall (firewalld)
+https://docs.ansible.com/ansible/2.5/modules/firewalld_module.html
+https://www.tecmint.com/restrict-network-access-using-firewalld/
+https://www.thegeekdiary.com/5-useful-examples-of-firewall-cmd-command/
+
+commande pour lancer l'exécution d'ansible avec un fichier hosts, un playbook et une clé privée en paramètre => 
+#ansible-playbook -i hosts.yml playbookFirewall.yml --private-key ssh-private-key.txt
+
+commande pour afficher l'état du firewalld =>
+#firewall-cmd --list-all (ce qui nous intéresse sont les 'services:' et les 'ports:')
+
+
+- dans le fichier .yml, les mots 'apt' et 'firewalld' sont des modules, 
+pour lister ts les modules => #ansible-doc -l
+pour avoir la notice d'utilisation d'un module => #ansible-doc apt
+
+- 'become: true' permet d'activer "l'escalier des utilisateurs". en gros, on permet au script de changer d'utilisateur, comme si on fesait un #su pour devenir root
+(https://docs.ansible.com/ansible/2.3/become.html)
+
+
+
+
+
+
+- créer un playbook pour installer docker 
+https://www.codeflow.site/fr/article/how-to-use-ansible-to-install-and-set-up-docker-on-ubuntu-18-04
+https://medium.com/@rajitpaull/ansible-playbook-to-setup-web-apache-server-on-docker-a3f9d456bdd3
+- créer un repertoire qui va contenir un fichier html qui va ensuite etre copié vers les machines distantes
+
